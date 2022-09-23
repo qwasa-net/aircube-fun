@@ -112,4 +112,4 @@ with dag:
     layers[-1] >> acca >> end
 
 # I was here
-logging.warning("this is %s %s", __file__)
+logging.warning("this is %s", __file__)
