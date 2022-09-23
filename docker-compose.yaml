@@ -1,3 +1,5 @@
+## BASED ON: https://airflow.apache.org/docs/apache-airflow/2.4.0/docker-compose.yaml
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -24,25 +26,32 @@ x-airflow-common:
   # build: .
   environment:
     &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT: 'false'
     AIRFLOW__CORE__DEFAULT_TASK_RETRIES: 0
-    AIRFLOW__WEBSERVER__WEB_SERVER_PORT: 8000
-    AIRFLOW__CELERY__WORKER_CONCURRENCY: 2
-    AIRFLOW__LOGGING__LOG_FILENAME_TEMPLATE: 'dag_id={{ ti.dag_id }}/task_id={{ ti.task_id }}.log'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
-    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 3600
-    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 3600
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 43200
+    AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 43200
+    AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT: 'false'
     AIRFLOW__WEBSERVER__WORKERS: 1
+    AIRFLOW__WEBSERVER__WEB_SERVER_PORT: 8000
+    AIRFLOW__WEBSERVER__ACCESS_LOGFILE: '/opt/airflow/logs/webserver_access.log'
+    AIRFLOW__WEBSERVER__ERROR_LOGFILE: '/opt/airflow/logs/webserver_error.log'
+    AIRFLOW__LOGGING__LOG_FILENAME_TEMPLATE: 'dag_id={{ ti.dag_id }}/task_id={{ ti.task_id }}.log'
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CELERY__WORKER_CONCURRENCY: 2
   volumes:
-    - ./dags:/opt/airflow/dags
-    - ./_run/mnt/logs:/opt/airflow/logs
+    - type: bind
+      source: ./dags
+      target: /opt/airflow/dags
+      read_only: true
+    - type: bind
+      source: ./_run/mnt/logs
+      target: /opt/airflow/logs
   user: "${AIRFLOW_UID}:0"
   depends_on:
     &airflow-common-depends-on
@@ -52,6 +61,7 @@ x-airflow-common:
       condition: service_healthy
 
 services:
+
   postgres:
     image: postgres:13
     environment:
@@ -59,12 +69,12 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     volumes:
-      - ./_run/mnt/postgres:/var/lib/postgresql/data
-      # - postgres-db-volume:/var/lib/postgresql/data
+      - type: bind
+        source: ./_run/mnt/postgres
+        target: /var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 5s
-      retries: 5
+      interval: 60s
     restart: always
 
   redis:
@@ -73,9 +83,7 @@ services:
       - 6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 30s
-      retries: 50
+      interval: 60s
     restart: always
 
   airflow-webserver:
@@ -85,9 +93,7 @@ services:
       - 8000:8000
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
+      interval: 60s
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
@@ -99,9 +105,7 @@ services:
     command: scheduler
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
-      interval: 10s
-      timeout: 10s
-      retries: 5
+      interval: 60s
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
@@ -115,9 +119,7 @@ services:
       test:
         - "CMD-SHELL"
         - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
-      interval: 10s
-      timeout: 10s
-      retries: 5
+      interval: 60s
     environment:
       <<: *airflow-common-env
       # Required to handle warm shutdown of the celery workers properly
@@ -129,42 +131,28 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-  airflow-triggerer:
-    <<: *airflow-common
-    command: triggerer
-    healthcheck:
-      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
-      interval: 10s
-      timeout: 10s
-      retries: 5
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
-    # yamllint disable rule:line-length
     command:
       - -c
       - |
+        echo -e "Airflow init started"
         echo -e "AIRFLOW_UID=${AIRFLOW_UID}"
-        mkdir -p /sources/logs /sources/plugins
-        chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
-        exec /entrypoint airflow version
-    # yamllint enable rule:line-length
+        mkdir -p /sources/logs
+        chown -R "${AIRFLOW_UID}:0" /sources/logs
+        exec /entrypoint airflow info --verbose
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_UPGRADE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-      _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
     volumes:
-      - ./_run/mnt:/sources
+      - type: bind
+        source: ./_run/mnt/
+        target: /sources
 
   airflow-cli:
     <<: *airflow-common
@@ -173,33 +161,7 @@ services:
     environment:
       <<: *airflow-common-env
       CONNECTION_CHECK_MAX_COUNT: "0"
-    # Workaround for entrypoint issue. See: https://github.com/apache/airflow/issues/16252
     command:
       - bash
       - -c
       - airflow
-
-  # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
-  # or by explicitly targeted on the command line e.g. docker-compose up flower.
-  # See: https://docs.docker.com/compose/profiles/
-  flower:
-    <<: *airflow-common
-    command: celery flower
-    profiles:
-      - flower
-    ports:
-      - 5555:5555
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
-
-volumes:
-  postgres-db-volume:
-

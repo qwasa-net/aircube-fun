@@ -5,7 +5,7 @@ hello:  # hello
 
 
 start_in_compose:  # start airflow&co in docker-compose
-	-mkdir -p ./_run/mnt/logs ./_run/mnt/postgres ./dags
+	-mkdir -pv ./_run/mnt/logs ./_run/mnt/postgres ./dags
 	echo "AIRFLOW_UID=$$(id -u)" | tee .env
 	docker-compose up
 
