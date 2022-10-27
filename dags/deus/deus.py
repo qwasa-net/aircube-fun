@@ -65,7 +65,7 @@ def generate_many_dags(m: int, n: int) -> dict:
 
 
 # do the do and generate the DAGs
-dags = generate_many_dags(8, 10)
+dags = generate_many_dags(5, 10)
 
 # add generated DAGs to the globals
 globals().update(dags)

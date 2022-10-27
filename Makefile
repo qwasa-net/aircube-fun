@@ -41,4 +41,5 @@ venv:  # create virtual environment (dev only)
 	# install airflow and friends
 	"$(PWD)/_venv/bin/pip" install \
 	apache-airflow==${AIRFLOW_VERSION} \
+	apache-airflow-providers-amazon \
 	--constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
