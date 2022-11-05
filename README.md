@@ -4,14 +4,14 @@ run away!
 
 ---------------------
 
-## XCOM demo
+## ACCA -- XCOM demo
 ![Acca DAG](dags/acca/acca.png)
 
 
-## Trigger rule demo
+## PIPES -- Trigger rule demo
 ![Pipes DAG](dags/pipes/pipes.png)
 
 
-## Dynamic operator expand demo
+## EXPANDUS -- Dynamic operator expand demo
 ![Expandus DAG](dags/expandus/expandus.png)
 
