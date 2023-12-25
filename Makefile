@@ -1,5 +1,6 @@
-AIRFLOW_VERSION=2.4.0
-PYTHON_VERSION=$(shell python3 --version | cut -d " " -f 2 | cut -d "." -f 1-2)
+AIRFLOW_VERSION ?= 2.8.0
+PYTHON_SYSTEM ?= python3
+PYTHON_VERSION ?= $(shell "$(PYTHON_SYSTEM)" --version | cut -d " " -f 2 | cut -d "." -f 1-2)
 PWD=$(shell pwd)
 
 
@@ -15,7 +16,8 @@ start_in_compose:  # start airflow&co in docker-compose
 	docker-compose up
 
 
-start_standalone:  venv  # start airflow&co locally (standalone)
+CMD ?= airflow standalone
+start_standalone: # start airflow&co locally (standalone)
 
 	# make dirs and copy config
 	-mkdir -pv ./_run/local/logs ./_run/local/postgres ./dags
@@ -30,16 +32,17 @@ start_standalone:  venv  # start airflow&co locally (standalone)
 	# run full lot
 	PATH=$PATH:$(PWD)/_venv/bin/ \
 	AIRFLOW_HOME=$(PWD)/_run/local/ \
-	airflow standalone
-
+	$(CMD)
 
 venv:  # create virtual environment (dev only)
-	[ -f "$(PWD)/_venv/bin/python" ] || python3 -m venv "$(PWD)/_venv"
+	[ -f "$(PWD)/_venv/bin/python" ] || "$(PYTHON_SYSTEM)" -m venv "$(PWD)/_venv"
+	wget -c "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt" -O "$(PWD)/_venv/airflow-constraints-${AIRFLOW_VERSION}-${PYTHON_VERSION}.txt"
 	"$(PWD)/_venv/bin/python" --version
 	# install dev tools
-	"$(PWD)/_venv/bin/pip" install flake8 black
+	"$(PWD)/_venv/bin/pip" install --disable-pip-version-check flake8 black
 	# install airflow and friends
-	"$(PWD)/_venv/bin/pip" install \
+	"$(PWD)/_venv/bin/pip" install --disable-pip-version-check \
 	apache-airflow==${AIRFLOW_VERSION} \
 	apache-airflow-providers-amazon \
-	--constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+	--constraint "$(PWD)/_venv/airflow-constraints-${AIRFLOW_VERSION}-${PYTHON_VERSION}.txt"
+

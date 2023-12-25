@@ -15,7 +15,7 @@ from airflow.utils.trigger_rule import TriggerRule
 
 dag = DAG(
     dag_id="Acca",
-    schedule="@hourly",
+    schedule=None,
     start_date=datetime(1970, 1, 1),
     catchup=False,
     tags=["fun"],
@@ -55,9 +55,13 @@ def create_noop_tasks_layer(name, m):
     return ops_layer, task_ids
 
 
-def do_calculate(task_ids, **kwargs):
+def do_calculate(*args, **kwargs):
     """Calculate the sum of the results of the tasks."""
     ti = kwargs["ti"]
+    task_ids = [t.task_id for t in kwargs["dag_run"].get_task_instances()]
+    values = ti.xcom_pull(task_ids=None, key="return_value")
+    logging.info("values=%s", values)
+    values = ti.xcom_pull(task_ids=task_ids, key="return_value")
     values = ti.xcom_pull(task_ids=task_ids, key="return_value")
     result = sum(values)
     logging.info("task_ids=%s", task_ids)
